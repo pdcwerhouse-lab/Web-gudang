@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GudangStock Pro - Real-Time Cloud & Print Label</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        @media print {
+            body {
+                background: white !important;
+                color: black !important;
+            }
+            body * {
+                visibility: hidden !important;
+            }
+            #printArea, #printArea * {
+                visibility: visible !important;
+            }
+            #printArea {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                display: block !important;
+                background: white !important;
+            }
+            .page-break {
+                page-break-after: always;
+                break-after: page;
+            }
+        }
+    </style>
+</head>
+<body id="pageBody" class="bg-slate-900 text-slate-100 min-h-screen font-sans antialiased transition-colors duration-300">
+    <div class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Header -->
+        <header id="mainHeader" class="flex flex-col md:flex-row justify-between items-center bg-slate-800 border border-slate-700 rounded-2xl p-6 mb-6 shadow-xl gap-4 transition-colors duration-300">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
+                    <i class="fa-solid fa-boxes-stacked text-indigo-400"></i> GudangStock Pro
+                </h1>
+                <p class="text-sm text-slate-400 mt-1">Master Data Paten, Monitoring & Cetak Resi Lokasi Rak</p>
+            </div>
+            <div class="flex items-center gap-3 flex-wrap">
+                <span id="syncStatus" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-950 text-emerald-400 border border-emerald-800">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Cloud Sync Aktif
+                </span>
+                <!-- Tombol Tema -->
+                <button type="button" id="btnToggleTheme" class="bg-amber-500/25 hover:bg-amber-500/40 text-amber-300 border border-amber-500/30 px-3 py-2 rounded-xl font-medium text-sm transition flex items-center gap-2 cursor-pointer">
+                    <i class="fa-solid fa-sun" id="themeIcon"></i> <span id="themeText">Terang</span>
+                </button>
+                <button type="button" id="btnOpenImport" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl font-medium text-sm transition shadow-lg shadow-indigo-600/30 flex items-center gap-2 cursor-pointer">
+                    <i class="fa-solid fa-file-excel"></i> Paste / Impor Data
+                </button>
+                <button type="button" id="btnResetDemo" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-4 py-2 rounded-xl font-medium text-sm transition flex items-center gap-2 cursor-pointer">
+                    <i class="fa-solid fa-rotate-right"></i> Reset
+                </button>
+            </div>
+        </header>
+
+        <!-- Navigasi Tab Utama -->
+        <div id="navContainer" class="bg-slate-800 border border-slate-700 rounded-2xl p-4 mb-6 shadow-xl flex flex-col md:flex-row justify-between items-center gap-4 transition-colors duration-300">
+            <div class="flex items-center gap-2 flex-wrap">
+                <button onclick="switchTab('paten')" id="tab-paten" class="px-4 py-2 rounded-xl font-medium text-sm transition bg-indigo-600 text-white flex items-center gap-2 shadow-md">
+                    <i class="fa-solid fa-lock text-xs"></i> Data Paten <span id="count-paten" class="bg-slate-900/50 px-2 py-0.5 rounded-lg text-xs">0</span>
+                </button>
+                <button onclick="switchTab('real')" id="tab-real" class="px-4 py-2 rounded-xl font-medium text-sm transition bg-slate-700 hover:bg-slate-600 text-slate-300 flex items-center gap-2">
+                    <i class="fa-solid fa-rotate text-xs"></i> Real All Stock <span id="count-real" class="bg-slate-900 px-2 py-0.5 rounded-lg text-xs">0</span>
+                </button>
+                <button onclick="switchTab('atas')" id="tab-atas" class="px-4 py-2 rounded-xl font-medium text-sm transition bg-slate-700 hover:bg-slate-600 text-slate-300 flex items-center gap-2">
+                    <i class="fa-solid fa-arrow-up text-xs"></i> Stok Atas <span id="count-atas" class="bg-slate-900 px-2 py-0.5 rounded-lg text-xs">0</span>
+                </button>
+            </div>
+            <div>
+                <button type="button" onclick="openPrintModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl font-medium text-sm transition shadow-lg shadow-emerald-600/30 flex items-center gap-2 cursor-pointer">
+                    <i class="fa-solid fa-print"></i> Cetak Terpilih (<span id="selectedCount">0</span>)
+                </button>
+            </div>
+        </div>
+
+        <!-- Info Card Ringkasan -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6" id="infoCardsContainer">
+            <div class="card-bg bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl flex items-center justify-between transition-colors duration-300">
+                <div>
+                    <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold" id="cardTitle1">Total Item</p>
+                    <h3 id="statVal1" class="text-2xl font-bold text-white mt-1">0</h3>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                </div>
+            </div>
+            <div class="card-bg bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl flex items-center justify-between transition-colors duration-300">
+                <div>
+                    <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold" id="cardTitle2">Total Qty</p>
+                    <h3 id="statVal2" class="text-2xl font-bold text-indigo-400 mt-1">0</h3>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-chart-pie"></i>
+                </div>
+            </div>
+            <div class="card-bg bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl flex items-center justify-between transition-colors duration-300">
+                <div>
+                    <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold" id="cardTitle3">Status Data</p>
+                    <h3 id="statVal3" class="text-lg font-bold text-emerald-400 mt-1">Real-Time</h3>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+            </div>
+            <div class="card-bg bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl flex items-center justify-between transition-colors duration-300">
+                <div>
+                    <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold" id="cardTitle4">Sinkronisasi</p>
+                    <h3 id="statVal4" class="text-lg font-bold text-indigo-400 mt-1">Aktif</h3>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabel Utama & Pencarian -->
+        <div id="tableWrapper" class="bg-slate-800 border border-slate-700 rounded-2xl shadow-xl overflow-hidden transition-colors duration-300">
+            <div class="p-4 border-b border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div class="relative w-full sm:w-80">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </span>
+                    <input type="text" id="searchInput" placeholder="Cari SKU atau Nama Produk..." class="search-input w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors duration-300">
+                </div>
+                <div class="relative w-full sm:w-64">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                        <i class="fa-solid fa-layer-group"></i>
+                    </span>
+                    <input type="text" id="rackFilter" placeholder="Ketik Rak (misal: 0001)..." class="rack-input w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors duration-300">
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr id="tableHeader" class="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider bg-slate-800/50 transition-colors duration-300">
+                            <th class="p-4 w-12 text-center">
+                                <input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)" class="w-4 h-4 rounded accent-indigo-600 cursor-pointer">
+                            </th>
+                            <th class="p-4">SKU</th>
+                            <th class="p-4">Rak</th>
+                            <th class="p-4">Nama Produk</th>
+                            <th class="p-4 text-center" id="colHeaderDynamic">Stok Paten</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stockTableBody" class="divide-y divide-slate-700/60 text-sm">
+                        <!-- Data masuk otomatis -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Area -->
+    <div id="printArea" style="display: none;"></div>
+
+    <!-- Modal Edit Qty & Pratinjau Cetak -->
+    <div id="printModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-2xl p-6 shadow-2xl transition-colors duration-300 flex flex-col max-h-[90vh]">
+            <h3 class="text-lg font-bold mb-2 text-white flex items-center gap-2">
+                <i class="fa-solid fa-pen-to-square text-indigo-400"></i> Edit Quantity & Pratinjau Cetak Resi
+            </h3>
+            <p class="text-xs text-slate-400 mb-4">Sesuaikan quantity masing-masing produk di bawah ini sebelum dicetak:</p>
+            
+            <div id="printModalList" class="overflow-y-auto space-y-3 pr-2 flex-1 divide-y divide-slate-700">
+                <!-- Daftar item yang dicentang akan muncul di sini -->
+            </div>
+
+            <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-700">
+                <button type="button" onclick="closePrintModal()" class="px-4 py-2 rounded-xl text-sm font-medium bg-slate-700 hover:bg-slate-600 text-white transition cursor-pointer">Batal</button>
+                <button type="button" onclick="executePrint()" class="px-5 py-2 rounded-xl text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-lg shadow-emerald-600/30 flex items-center gap-2 cursor-pointer">
+                    <i class="fa-solid fa-print"></i> Cetak Resi Sekarang
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Import -->
+    <div id="importModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="modal-bg bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl transition-colors duration-300">
+            <h3 class="text-lg font-bold mb-2 text-white"><i class="fa-solid fa-paste text-indigo-400 mr-2"></i> Paste / Impor Data Excel</h3>
+            <p class="text-xs text-slate-400 mb-4">Paste langsung dari Excel (Urutan Excel: <b class="text-indigo-300">SKU | RAK | Quantity | Product Name</b>):</p>
+            <textarea id="importDataText" rows="6" class="textarea-bg w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500 font-mono transition-colors duration-300" placeholder="SKU [TAB] RAK [TAB] Quantity [TAB] Product Name"></textarea>
+            <div class="flex justify-end gap-3 mt-6">
+                <button type="button" id="btnCloseImport" class="px-4 py-2 rounded-xl text-sm font-medium bg-slate-700 hover:bg-slate-600 text-white transition cursor-pointer">Batal</button>
+                <button type="button" id="btnSubmitImport" class="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition cursor-pointer">Proses & Simpan ke Cloud</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Script -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCsADOlW-gy9MqWOk6nXro25p4ZldoWxFo",
+            authDomain: "web-stock-a8fe4.firebaseapp.com",
+            projectId: "web-stock-a8fe4",
+            storageBucket: "web-stock-a8fe4.firebasestorage.app",
+            messagingSenderId: "829775325373",
+            appId: "1:829775325373:web:1d75ffb917d546e1266fd4",
+            measurementId: "G-RG06Q3PSHZ"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let itemsList = [];
+        let currentTab = 'paten';
+        let isDarkMode = true;
+        let selectedIds = new Set();
+
+        onSnapshot(collection(db, "gudang_stocks"), (snapshot) => {
+            itemsList = [];
+            snapshot.forEach((docSnap) => {
+                itemsList.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            updateCounters();
+            renderTable();
+        }, (error) => {
+            console.error("Error fetching data: ", error);
+            document.getElementById("syncStatus").innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> Sync Error`;
+        });
+
+        window.switchTab = function(tab) {
+            currentTab = tab;
+            ['paten', 'real', 'atas'].forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                if (!btn) return;
+                if (t === tab) {
+                    btn.className = "px-4 py-2 rounded-xl font-medium text-sm transition bg-indigo-600 text-white flex items-center gap-2 shadow-md";
+                } else {
+                    btn.className = isDarkMode 
+                        ? "px-4 py-2 rounded-xl font-medium text-sm transition bg-slate-700 hover:bg-slate-600 text-slate-300 flex items-center gap-2"
+                        : "px-4 py-2 rounded-xl font-medium text-sm transition bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center gap-2";
+                }
+            });
+            updateCounters();
+            renderTable();
+        }
+
+        function updateCounters() {
+            document.getElementById("count-paten").innerText = itemsList.length;
+            document.getElementById("count-real").innerText = itemsList.length;
+            document.getElementById("count-atas").innerText = itemsList.length;
+
+            const t1 = document.getElementById("cardTitle1");
+            const t2 = document.getElementById("cardTitle2");
+            const t3 = document.getElementById("cardTitle3");
+            const t4 = document.getElementById("cardTitle4");
+            const v1 = document.getElementById("statVal1");
+            const v2 = document.getElementById("statVal2");
+            const v3 = document.getElementById("statVal3");
+            const v4 = document.getElementById("statVal4");
+
+            v1.innerText = itemsList.length;
+
+            if (currentTab === 'paten') {
+                t1.innerText = "Total Item";
+                t2.innerText = "Total Qty Paten";
+                t3.innerText = "Status Data";
+                t4.innerText = "Sinkronisasi";
+                v2.innerText = itemsList.reduce((sum, i) => sum + (parseInt(i.stock) || 0), 0).toLocaleString();
+                v3.innerText = "Terkunci";
+                v4.innerText = "Aktif";
+            } else if (currentTab === 'real') {
+                t1.innerText = "Total Item";
+                t2.innerText = "Total Stok Bawah";
+                t3.innerText = "Status Data";
+                t4.innerText = "Sinkronisasi";
+                
+                const totalBawah = itemsList.reduce((sum, i) => {
+                    const paten = parseInt(i.stock) || 0;
+                    const atasHasil = (parseInt(i.atas_awal) || 0) + (parseInt(i.atas_akum_naik) || 0) - (parseInt(i.atas_akum_turun) || 0);
+                    return sum + (paten - atasHasil);
+                }, 0);
+
+                v2.innerText = totalBawah.toLocaleString();
+                v3.innerText = "Real-Time";
+                v4.innerText = "Aktif";
+            } else if (currentTab === 'atas') {
+                t1.innerText = "Total Item";
+                t2.innerText = "Total Hasil Akhir";
+                t3.innerText = "Total Akumulasi Naik";
+                t4.innerText = "Total Akumulasi Turun";
+
+                const totalHasil = itemsList.reduce((sum, i) => {
+                    const awal = parseInt(i.atas_awal) || 0;
+                    const akumNaik = parseInt(i.atas_akum_naik) || 0;
+                    const akumTurun = parseInt(i.atas_akum_turun) || 0;
+                    return sum + ((awal + akumNaik) - akumTurun);
+                }, 0);
+
+                const totalAkumNaik = itemsList.reduce((sum, i) => sum + (parseInt(i.atas_akum_naik) || 0), 0);
+                const totalAkumTurun = itemsList.reduce((sum, i) => sum + (parseInt(i.atas_akum_turun) || 0), 0);
+
+                v2.innerText = totalHasil.toLocaleString();
+                v3.innerText = totalAkumNaik.toLocaleString();
+                v4.innerText = totalAkumTurun.toLocaleString();
+            }
+        }
+
+        window.renderTable = function() {
+            const searchInput = document.getElementById("searchInput");
+            const rackFilter = document.getElementById("rackFilter");
+            const keyword = searchInput ? searchInput.value.toLowerCase().trim() : "";
+            const rackKeyword = rackFilter ? rackFilter.value.toLowerCase().trim() : "";
+            const tbody = document.getElementById("stockTableBody");
+            const colHeader = document.getElementById("colHeaderDynamic");
+            tbody.innerHTML = "";
+
+            if (currentTab === 'atas') {
+                colHeader.innerHTML = `
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs font-semibold">
+                        <div>OPNAME MANUAL</div>
+                        <div>+ NAIK | - TURUN (TEKAN ENTER)</div>
+                        <div>HASIL AKHIR STOK</div>
+                    </div>
+                `;
+            } else if (currentTab === 'real') {
+                colHeader.innerHTML = `
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs font-semibold">
+                        <div>QUANTITY PATEN</div>
+                        <div>STOK ATAS</div>
+                        <div>STOK BAWAH</div>
+                    </div>
+                `;
+            } else {
+                colHeader.innerText = "STOK PATEN";
+            }
+
+            const filtered = itemsList.filter(item => {
+                const matchSearch = keyword === "" || 
+                                    (item.sku && item.sku.toLowerCase().includes(keyword)) ||
+                                    (item.name && item.name.toLowerCase().includes(keyword));
+                const matchRack = rackKeyword === "" || 
+                                  (item.rack && item.rack.toLowerCase().includes(rackKeyword));
+                return matchSearch && matchRack;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-slate-400"><i class="fa-solid fa-folder-open text-3xl mb-2"></i><p>Belum ada data barang atau data tidak ditemukan.</p></td></tr>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const textNameClass = isDarkMode ? "text-white font-medium" : "text-slate-900 font-medium";
+                const textSkuClass = isDarkMode ? "text-indigo-300 font-mono text-xs" : "text-indigo-600 font-mono text-xs";
+                const textRackClass = isDarkMode ? "text-slate-300" : "text-slate-700";
+                const isChecked = selectedIds.has(item.id) ? 'checked' : '';
+
+                let rightColumnHTML = '';
+
+                if (currentTab === 'atas') {
+                    const awalVal = parseInt(item.atas_awal) || 0;
+                    const akumNaik = parseInt(item.atas_akum_naik) || 0;
+                    const akumTurun = parseInt(item.atas_akum_turun) || 0;
+                    const hasilAkhir = (awalVal + akumNaik) - akumTurun;
+
+                    rightColumnHTML = `
+                        <td class="p-4">
+                            <div class="grid grid-cols-3 gap-2 items-center text-center">
+                                <div>
+                                    <input type="number" value="${awalVal}" onchange="updateAwal('${item.id}', this.value)" class="w-20 bg-slate-900 border border-slate-700 rounded-lg py-1.5 text-center text-white text-sm font-bold focus:outline-none focus:border-indigo-500" placeholder="0">
+                                </div>
+                                <div class="flex items-center justify-center gap-1">
+                                    <input type="number" id="input_naik_${item.id}" placeholder="0" onkeydown="handleEnter(event, '${item.id}', 'naik')" class="w-16 bg-slate-900 border border-emerald-500/50 rounded-lg py-1.5 text-center text-emerald-400 text-xs font-bold focus:outline-none" title="Ketik angka, lalu tekan Enter">
+                                    <span class="text-slate-500">/</span>
+                                    <input type="number" id="input_turun_${item.id}" placeholder="0" onkeydown="handleEnter(event, '${item.id}', 'turun')" class="w-16 bg-slate-900 border border-rose-500/50 rounded-lg py-1.5 text-center text-rose-400 text-xs font-bold focus:outline-none" title="Ketik angka, lalu tekan Enter">
+                                </div>
+                                <div class="font-bold text-base text-indigo-400 bg-indigo-500/10 py-1.5 rounded-lg border border-indigo-500/30">${hasilAkhir}</div>
+                            </div>
+                        </td>
+                    `;
+                } else if (currentTab === 'real') {
+                    const patenVal = parseInt(item.stock) || 0;
+                    const stokAtas = (parseInt(item.atas_awal) || 0) + (parseInt(item.atas_akum_naik) || 0) - (parseInt(item.atas_akum_turun) || 0);
+                    const stokBawah = patenVal - stokAtas;
+
+                    rightColumnHTML = `
+                        <td class="p-4">
+                            <div class="grid grid-cols-3 gap-2 items-center text-center">
+                                <div class="font-bold text-base text-indigo-300">
+                                    <span class="px-3 py-1.5 rounded-lg ${isDarkMode ? 'bg-slate-900/60 border border-slate-700' : 'bg-slate-100 border border-slate-300'}">
+                                        ${patenVal}
+                                    </span>
+                                </div>
+                                <div class="font-bold text-base text-amber-400">
+                                    <span class="px-3 py-1.5 rounded-lg ${isDarkMode ? 'bg-amber-950/40 border border-amber-800' : 'bg-amber-50 border border-amber-300'}">
+                                        ${stokAtas}
+                                    </span>
+                                </div>
+                                <div class="font-bold text-base text-emerald-400">
+                                    <span class="px-3 py-1.5 rounded-lg ${isDarkMode ? 'bg-emerald-950/40 border border-emerald-800' : 'bg-emerald-50 border border-emerald-300'}">
+                                        ${stokBawah}
+                                    </span>
+                                </div>
+                            </div>
+                        </td>
+                    `;
+                } else {
+                    rightColumnHTML = `
+                        <td class="p-4 text-center font-bold text-indigo-400 text-base">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg ${isDarkMode ? 'bg-slate-900/60 border border-slate-700 text-indigo-300' : 'bg-slate-100 border border-slate-300 text-indigo-700'}">
+                                ${item.stock || 0} <i class="fa-solid fa-lock text-[10px] opacity-60"></i>
+                            </span>
+                        </td>
+                    `;
+                }
+
+                tbody.innerHTML += `
+                    <tr class="hover:${isDarkMode ? 'bg-slate-700/30' : 'bg-slate-100'} transition">
+                        <td class="p-4 text-center">
+                            <input type="checkbox" value="${item.id}" ${isChecked} onchange="toggleSelectItem('${item.id}', this)" class="w-4 h-4 rounded accent-indigo-600 cursor-pointer item-checkbox">
+                        </td>
+                        <td class="p-4 ${textSkuClass}">${item.sku || '-'}</td>
+                        <td class="p-4 ${textRackClass}">${item.rack || '-'}</td>
+                        <td class="p-4 ${textNameClass}">${item.name || '-'}</td>
+                        ${rightColumnHTML}
+                    </tr>
+                `;
+            });
+        }
+
+        window.toggleSelectItem = function(id, checkbox) {
+            if (checkbox.checked) {
+                selectedIds.add(id);
+            } else {
+                selectedIds.delete(id);
+            }
+            document.getElementById("selectedCount").innerText = selectedIds.size;
+        }
+
+        window.toggleSelectAll = function(selectAllCheckbox) {
+            const checkboxes = document.querySelectorAll(".item-checkbox");
+            checkboxes.forEach(cb => {
+                cb.checked = selectAllCheckbox.checked;
+                if (selectAllCheckbox.checked) {
+                    selectedIds.add(cb.value);
+                } else {
+                    selectedIds.delete(cb.value);
+                }
+            });
+            document.getElementById("selectedCount").innerText = selectedIds.size;
+        }
+
+        window.openPrintModal = function() {
+            if (selectedIds.size === 0) {
+                Swal.fire('Peringatan', 'Belum ada produk yang dicentang untuk dicetak!', 'warning');
+                return;
+            }
+
+            const modalList = document.getElementById("printModalList");
+            modalList.innerHTML = '';
+
+            selectedIds.forEach(id => {
+                const item = itemsList.find(i => i.id === id);
+                if (item) {
+                    let defaultQty = item.stock || 0;
+                    if (currentTab === 'atas') {
+                        defaultQty = (parseInt(item.atas_awal) || 0) + (parseInt(item.atas_akum_naik) || 0) - (parseInt(item.atas_akum_turun) || 0);
+                    } else if (currentTab === 'real') {
+                        const paten = parseInt(item.stock) || 0;
+                        const atas = (parseInt(item.atas_awal) || 0) + (parseInt(item.atas_akum_naik) || 0) - (parseInt(item.atas_akum_turun) || 0);
+                        defaultQty = paten - atas;
+                    }
+
+                    modalList.innerHTML += `
+                        <div class="flex items-center justify-between py-3 gap-4">
+                            <div class="flex-1">
+                                <div class="text-white font-bold text-sm">${item.name || '-'}</div>
+                                <div class="text-xs text-indigo-300">Rak: <b class="text-white">${item.rack || '-'}</b></div>
+                            </div>
+                            <div class="w-32">
+                                <label class="text-[10px] text-slate-400 block mb-1">EDIT QUANTITY</label>
+                                <input type="number" id="print_qty_${item.id}" value="${defaultQty}" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-center text-emerald-400 font-bold text-sm focus:outline-none focus:border-indigo-500">
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            document.getElementById("printModal").classList.remove("hidden");
+        }
+
+        window.closePrintModal = function() {
+            document.getElementById("printModal").classList.add("hidden");
+        }
+
+        window.executePrint = function() {
+            const printArea = document.getElementById("printArea");
+            let htmlContent = '';
+            const todayStr = new Date().toLocaleDateString('en-GB');
+
+            selectedIds.forEach(id => {
+                const item = itemsList.find(i => i.id === id);
+                if (item) {
+                    const qtyInput = document.getElementById(`print_qty_${item.id}`);
+                    const finalQty = qtyInput ? qtyInput.value : (item.stock || 0);
+
+                    htmlContent += `
+                        <div style="width: 350px; border: 3px solid black; padding: 20px; margin: 0 auto 20px auto; font-family: Arial, sans-serif; background: white; color: black;" class="page-break">
+                            <div style="border: 2px solid black; padding: 8px; font-weight: bold; font-size: 14px; margin-bottom: 20px; text-align: center; letter-spacing: 1px;">
+                                RESI LOKASI RAK
+                            </div>
+                            <div style="font-size: 22px; font-weight: 900; line-height: 1.3; margin-bottom: 25px; text-align: center; text-transform: uppercase; min-height: 70px; display: flex; align-items: center; justify-content: center;">
+                                ${item.name || '-'}
+                            </div>
+                            <div style="border: 2px solid black; padding: 12px; margin-bottom: 12px; text-align: center;">
+                                <div style="font-size: 12px; font-weight: bold; margin-bottom: 4px;">NO. RAK</div>
+                                <div style="font-size: 38px; font-weight: 900; letter-spacing: 1.5px; line-height: 1.1;">${item.rack || '-'}</div>
+                            </div>
+                            <div style="border: 2px solid black; padding: 12px; margin-bottom: 15px; text-align: center;">
+                                <div style="font-size: 12px; font-weight: bold; margin-bottom: 4px;">QUANTITY</div>
+                                <div style="font-size: 38px; font-weight: 900; line-height: 1.1;">${finalQty}</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; border-top: 2px solid black; padding-top: 10px;">
+                                <span>TANGGAL:</span>
+                                <span>${todayStr}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            printArea.innerHTML = htmlContent;
+            printArea.style.display = 'block';
+            closePrintModal();
+            
+            window.print();
+            
+            printArea.style.display = 'none';
+        }
+
+        window.updateAwal = async function(id, val) {
+            const numVal = parseInt(val) || 0;
+            try {
+                await updateDoc(doc(db, "gudang_stocks", id), { atas_awal: numVal });
+            } catch (e) {
+                console.error("Error updating awal:", e);
+            }
+        }
+
+        window.handleEnter = async function(event, id, type) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                const inputEl = event.target;
+                const addVal = parseInt(inputEl.value) || 0;
+                if (addVal === 0) return;
+
+                const item = itemsList.find(i => i.id === id);
+                if (!item) return;
+
+                const currentAkum = parseInt(item['atas_akum_' + type]) || 0;
+                const newAkum = currentAkum + addVal;
+
+                try {
+                    await updateDoc(doc(db, "gudang_stocks", id), {
+                        ['atas_akum_' + type]: newAkum
+                    });
+                    inputEl.value = '';
+                } catch (e) {
+                    console.error("Error updating accumulation:", e);
+                    Swal.fire('Error', 'Gagal menyimpan data ke cloud.', 'error');
+                }
+            }
+        }
+
+        function setTheme(dark) {
+            isDarkMode = dark;
+            const body = document.getElementById("pageBody");
+            const header = document.getElementById("mainHeader");
+            const nav = document.getElementById("navContainer");
+            const tableWrapper = document.getElementById("tableWrapper");
+            const tableHeader = document.getElementById("tableHeader");
+            const searchInput = document.getElementById("searchInput");
+            const rackFilter = document.getElementById("rackFilter");
+            const themeIcon = document.getElementById("themeIcon");
+            const themeText = document.getElementById("themeText");
+            const cards = document.querySelectorAll(".card-bg");
+
+            if (isDarkMode) {
+                body.className = "bg-slate-900 text-slate-100 min-h-screen font-sans antialiased transition-colors duration-300";
+                header.className = "flex flex-col md:flex-row justify-between items-center bg-slate-800 border border-slate-700 rounded-2xl p-6 mb-6 shadow-xl gap-4 transition-colors duration-300";
+                nav.className = "bg-slate-800 border border-slate-700 rounded-2xl p-4 mb-6 shadow-xl flex flex-col md:flex-row justify-between items-center gap-4 transition-colors duration-300";
+                tableWrapper.className = "bg-slate-800 border border-slate-700 rounded-2xl shadow-xl overflow-hidden transition-colors duration-300";
+                tableHeader.className = "border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider bg-slate-800/50 transition-colors duration-300";
+                searchInput.className = "search-input w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors duration-300";
+                rackFilter.className = "rack-input w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors duration-300";
+                cards.forEach(c => c.className = "card-bg bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl flex items-center justify-between transition-colors duration-300");
+                themeIcon.className = "fa-solid fa-sun";
+                themeText.innerText = "Terang";
+            } else {
+                body.className = "bg-slate-100 text-slate-900 min-h-screen font-sans antialiased transition-colors duration-300";
+                header.className = "flex flex-col md:flex-row justify-between items-center bg-white border border-slate-200 rounded-2xl p-6 mb-6 shadow-xl gap-4 transition-colors duration-300";
+                nav.className = "bg-white border border-slate-200 rounded-2xl p-4 mb-6 shadow-xl flex flex-col md:flex-row justify-between items-center gap-4 transition-colors duration-300";
+                tableWrapper.className = "bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden transition-colors duration-300";
+                tableHeader.className = "border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider bg-slate-50 transition-colors duration-300";
+                searchInput.className = "search-input w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 transition-colors duration-300";
+                rackFilter.className = "rack-input w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 transition-colors duration-300";
+                cards.forEach(c => c.className = "card-bg bg-white border border-slate-200 rounded-2xl p-5 shadow-xl flex items-center justify-between transition-colors duration-300");
+                themeIcon.className = "fa-solid fa-moon";
+                themeText.innerText = "Gelap";
+            }
+            switchTab(currentTab);
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const btnOpenImport = document.getElementById("btnOpenImport");
+            const btnCloseImport = document.getElementById("btnCloseImport");
+            const btnSubmitImport = document.getElementById("btnSubmitImport");
+            const btnResetDemo = document.getElementById("btnResetDemo");
+            const btnToggleTheme = document.getElementById("btnToggleTheme");
+            const searchInput = document.getElementById("searchInput");
+            const rackFilter = document.getElementById("rackFilter");
+
+            if (btnToggleTheme) {
+                btnToggleTheme.addEventListener("click", () => setTheme(!isDarkMode));
+            }
+            if (btnOpenImport) {
+                btnOpenImport.addEventListener("click", () => document.getElementById("importModal").classList.remove("hidden"));
+            }
+            if (btnCloseImport) {
+                btnCloseImport.addEventListener("click", () => document.getElementById("importModal").classList.add("hidden"));
+            }
+
+            if (btnSubmitImport) {
+                btnSubmitImport.addEventListener("click", async () => {
+                    const rawText = document.getElementById("importDataText").value.trim();
+                    if (!rawText) {
+                        Swal.fire('Peringatan', 'Kotak data masih kosong!', 'warning');
+                        return;
+                    }
+
+                    const lines = rawText.split('\n');
+                    let successCount = 0;
+                    Swal.showLoading();
+
+                    try {
+                        const querySnapshot = await getDocs(collection(db, "gudang_stocks"));
+                        const batch = writeBatch(db);
+                        querySnapshot.forEach((document) => batch.delete(document.ref));
+                        await batch.commit();
+
+                        for (let line of lines) {
+                            const cols = line.split('\t');
+                            if (cols.length >= 4) {
+                                const sku = cols[0].trim();
+                                const rack = cols[1].trim();
+                                const stock = parseInt(cols[2].replace(/,/g, '')) || 0;
+                                const name = cols[3].trim();
+
+                                await addDoc(collection(db, "gudang_stocks"), { 
+                                    sku, rack, name, stock, 
+                                    atas_awal: 0, atas_akum_naik: 0, atas_akum_turun: 0 
+                                });
+                                successCount++;
+                            }
+                        }
+                        document.getElementById("importModal").classList.add("hidden");
+                        document.getElementById("importDataText").value = "";
+                        Swal.fire({ icon: 'success', title: `Berhasil mengimpor ${successCount} Data Paten!`, showConfirmButton: false, timer: 1500 });
+                    } catch (e) {
+                        console.error("Import error: ", e);
+                        Swal.fire('Error', 'Gagal mengimpor data ke cloud.', 'error');
+                    }
+                });
+            }
+
+            if (btnResetDemo) {
+                btnResetDemo.addEventListener("click", async () => {
+                    const result = await Swal.fire({
+                        title: 'Reset semua data cloud?',
+                        text: "Semua data di database akan dihapus bersih!",
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        cancelButtonColor: '#3085d6',
+                        confirmButtonText: 'Ya, Reset Semua!'
+                    });
+
+                    if (result.isConfirmed) {
+                        Swal.showLoading();
+                        try {
+                            const querySnapshot = await getDocs(collection(db, "gudang_stocks"));
+                            const batch = writeBatch(db);
+                            querySnapshot.forEach((document) => batch.delete(document.ref));
+                            await batch.commit();
+                            Swal.fire({ icon: 'success', title: 'Data berhasil direset!', showConfirmButton: false, timer: 1500 });
+                        } catch (e) {
+                            console.error("Reset error: ", e);
+                            Swal.fire('Error', 'Gagal mereset data.', 'error');
+                        }
+                    }
+                });
+            }
+
+            if (searchInput) {
+                searchInput.addEventListener("input", renderTable);
+            }
+
+            if (rackFilter) {
+                rackFilter.addEventListener("input", renderTable);
+            }
+        });
+    </script>
+</body>
+</html>
